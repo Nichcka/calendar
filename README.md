@@ -1,6 +1,6 @@
-# my_app
+# Сегодня я позволю себе кофе
 
-A new Flutter project.
+Приложение на языке dart с календарем расходов на месяц
 
 ## Getting Started
 

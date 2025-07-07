@@ -4,6 +4,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:expressions/expressions.dart';
 
 // ==============================================================================
 // Модель обязательного расхода
@@ -23,13 +24,16 @@ class MandatoryExpense {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('ru_RU');
-  runApp(const MyApp());
+  final prefs = await SharedPreferences.getInstance();
+  final themeIndex = prefs.getInt('themeMode') ?? 0;
+  runApp(MyApp(initialThemeMode: ThemeMode.values[themeIndex]));
 }
 
 // ==============================================================================
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  final ThemeMode initialThemeMode;
+  const MyApp({super.key, required this.initialThemeMode});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -37,10 +41,12 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   bool? _hasData;
+  late ValueNotifier<ThemeMode> themeNotifier;
 
   @override
   void initState() {
     super.initState();
+    themeNotifier = ValueNotifier(widget.initialThemeMode);
     _checkHasData();
   }
 
@@ -57,26 +63,72 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     if (_hasData == null) {
-      return const MaterialApp(
+      return MaterialApp(
         home: Scaffold(
-          backgroundColor: Color(0xFFEFEAE4),
-          body: Center(child: CircularProgressIndicator()),
+          backgroundColor: Colors.white,
+          body: const Center(child: CircularProgressIndicator()),
         ),
       );
     }
-    return MaterialApp(
-      title: 'Сегодня я позволю себе кофе',
-      locale: const Locale('ru', 'RU'),
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: const [
-        Locale('ru', 'RU'),
-      ],
-      theme: ThemeData(primarySwatch: Colors.lightGreen),
-      home: _hasData! ? const CalendarScreenLoader() : const BudgetInputScreen(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeNotifier,
+      builder: (context, mode, _) {
+        return MaterialApp(
+          title: 'Cash & Coffee',
+          locale: const Locale('ru', 'RU'),
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('ru', 'RU'),
+          ],
+          theme: ThemeData(
+        brightness: Brightness.light,
+        primarySwatch: Colors.lightGreen,
+        scaffoldBackgroundColor: const Color(0xFFFFFFFF),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFFFFFFFF),
+          iconTheme: IconThemeData(color: Color(0xFF313D65)),
+          titleTextStyle: TextStyle(
+            color: Color(0xFF313D65),
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        cardColor: const Color(0xFFF5F4EF),
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(color: Color(0xFF313D65)),
+          bodyMedium: TextStyle(color: Color(0xFF313D65)),
+          titleLarge: TextStyle(color: Color(0xFF313D65), fontWeight: FontWeight.bold),
+        ),
+      ),
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF222421),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF222421),
+          iconTheme: IconThemeData(color: Color(0xFF72695A)),
+          titleTextStyle: TextStyle(
+            color: Color(0xFF72695A),
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        cardColor: const Color(0xFF72695A),
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(color: Color(0xFF72695A)),
+          bodyMedium: TextStyle(color: Color(0xFF72695A)),
+          titleLarge: TextStyle(color: Color(0xFF72695A), fontWeight: FontWeight.bold),
+        ),
+      ),
+      themeMode: mode,
+      home: _hasData!
+          ? CalendarScreenLoader(themeNotifier: themeNotifier)
+          : BudgetInputScreen(themeNotifier: themeNotifier),
+        );
+      },
     );
   }
 }
@@ -85,7 +137,8 @@ class _MyAppState extends State<MyApp> {
 // Экран для ввода бюджета и расходов
 
 class BudgetInputScreen extends StatefulWidget {
-  const BudgetInputScreen({super.key});
+  final ValueNotifier<ThemeMode> themeNotifier;
+  const BudgetInputScreen({super.key, required this.themeNotifier});
 
   @override
   State<BudgetInputScreen> createState() => _BudgetInputScreenState();
@@ -142,7 +195,9 @@ class _BudgetInputScreenState extends State<BudgetInputScreen> {
 
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const CalendarScreenLoader()),
+      MaterialPageRoute(
+        builder: (_) => CalendarScreenLoader(themeNotifier: widget.themeNotifier),
+      ),
     );
   }
 
@@ -188,102 +243,151 @@ class _BudgetInputScreenState extends State<BudgetInputScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? const Color(0xFFE7D1C5) : const Color(0xFF313D65);
     final screenWidth = MediaQuery.of(context).size.width;
     return Scaffold(
-      backgroundColor: const Color(0xFFEFEAE4),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Введите бюджет и расходы',
-            style: TextStyle(color: Color(0xFF313D65))),
-        backgroundColor: const Color(0xFFEFEAE4),
+            title: Text(
+          'Введите бюджет и расходы',
+          style: TextStyle(
+            color: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFFE7D1C5)
+              : const Color(0xFF313D65),
+          ),
+        ),
         elevation: 0,
-        iconTheme: const IconThemeData(color: Color(0xFF313D65)),
+        iconTheme: IconThemeData(
+          color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFFE7D1C5)
+            : const Color(0xFF313D65),
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(
+              Theme.of(context).brightness == Brightness.light
+                  ? Icons.dark_mode
+                  : Icons.light_mode,
+            ),
+            onPressed: () {
+              widget.themeNotifier.value =
+                  widget.themeNotifier.value == ThemeMode.light
+                      ? ThemeMode.dark
+                      : ThemeMode.light;
+              SharedPreferences.getInstance().then((prefs) {
+                prefs.setInt('themeMode', ThemeMode.values.indexOf(widget.themeNotifier.value));
+              });
+            },
+          ),
+        ],
       ),
       body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: DefaultTextStyle(
-            style: const TextStyle(color: Color(0xFF313D65)),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  'Какой у вас бюджет на месяц?',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+  child: SingleChildScrollView(
+    padding: const EdgeInsets.all(16),
+    child: DefaultTextStyle(
+      style: TextStyle(color: textColor),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            'Какой у вас бюджет на месяц?',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: SizedBox(
+              width: screenWidth / 3,
+              child: TextField(
+                controller: _budgetController,
+                decoration: InputDecoration(
+                  labelText: 'Посмотрим, какой ты Скрудж Макдак',
+                  labelStyle: TextStyle(color: textColor.withOpacity(0.6)),
+                  border: const OutlineInputBorder(),
                 ),
-                const SizedBox(height: 8),
-                Center(
-                  child: SizedBox(
-                    width: screenWidth / 3,
-                    child: TextField(
-                      controller: _budgetController,
-                      decoration: const InputDecoration(
-                        labelText: 'Посмотрим, какой ты Скрудж Макдак',
-                        labelStyle: TextStyle(color: Color(0xFF313D65)),
-                        border: OutlineInputBorder(),
+                keyboardType: TextInputType.number,
+                style: TextStyle(color: textColor),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF72695A) // для тёмной темы
+                : null, // для светлой темы — по умолчанию, как сейчас
+            ),
+            onPressed: _selectStartDay,
+            icon: Icon(Icons.settings, color: textColor),
+            label: Text(
+              'Выберите день начала месяца (когда у тебя приходит зп) ($_startDayOfMonth)',
+              style: TextStyle(color: textColor.withOpacity(0.8)),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Введите обязательные расходы:',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _expenses.length,
+            itemBuilder: (context, index) {
+              final exp = _expenses[index];
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: screenWidth / 3,
+                      child: TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Описание',
+                          hintStyle: TextStyle(color: textColor.withOpacity(0.6)),
+                          border: const OutlineInputBorder(),
+                        ),
+                        style: TextStyle(color: textColor),
+                        onChanged: (v) => exp.description = v,
                       ),
-                      keyboardType: TextInputType.number,
-                      style: const TextStyle(color: Color(0xFF313D65)),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFCBC5B9),
-                    foregroundColor: const Color(0xFF313D65),
-                  ),
-                  onPressed: _selectStartDay,
-                  icon: const Icon(Icons.settings),
-                  label: Text('Выберите день начала месяца (когда у тебя приходит зп) ($_startDayOfMonth)'),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Введите обязательные расходы:',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _expenses.length,
-                  itemBuilder: (context, index) {
-                    final exp = _expenses[index];
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: screenWidth / 3,
-                            child: TextField(
-                              decoration: const InputDecoration(
-                                hintText: 'Описание',
-                                border: OutlineInputBorder(),
-                              ),
-                              onChanged: (v) => exp.description = v,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          SizedBox(
-                            width: screenWidth / 6,
-                            child: TextField(
-                              decoration: const InputDecoration(
-                                hintText: 'Сумма',
-                                border: OutlineInputBorder(),
-                              ),
-                              keyboardType: TextInputType.number,
-                              onChanged: (v) {
-                                exp.amount = double.tryParse(v) ?? 0;
-                                setState(() {});
-                              },
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Color(0xFF313D65)),
-                            onPressed: () {
-                              setState(() {
-                                _expenses.removeAt(index);
-                              });
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: screenWidth / 6,
+                      child: TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Сумма',
+                          hintStyle: TextStyle(color: textColor.withOpacity(0.6)),
+                          border: const OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        style: TextStyle(color: textColor),
+                        onChanged: (v) {
+                          exp.amount = double.tryParse(v) ?? 0;
+                          setState(() {});
+                        },
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.delete, 
+                      color: Theme.of(context).brightness == Brightness.dark
+                                      ? const Color(0xFF72695A) // для темной темы
+                                      : const Color(0xFF313D65), // для светлой темы
+                                ),
+                      onPressed: () {
+                        setState(() {
+                          _expenses.removeAt(index);
+                        });
                             },
                           ),
                         ],
@@ -326,7 +430,9 @@ class _BudgetInputScreenState extends State<BudgetInputScreen> {
 // Загрузчик данных для CalendarScreen
 
 class CalendarScreenLoader extends StatefulWidget {
-  const CalendarScreenLoader({super.key});
+  final ValueNotifier<ThemeMode> themeNotifier;
+
+  const CalendarScreenLoader({super.key, required this.themeNotifier});
 
   @override
   State<CalendarScreenLoader> createState() => _CalendarScreenLoaderState();
@@ -360,15 +466,16 @@ class _CalendarScreenLoaderState extends State<CalendarScreenLoader> {
   @override
   Widget build(BuildContext context) {
     if (budget == null || startDayOfMonth == null || expenses == null) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFEFEAE4),
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
     return CalendarScreen(
       initialBudget: budget!,
       initialExpenses: expenses!,
       startDayOfMonth: startDayOfMonth!,
+      themeNotifier: widget.themeNotifier,
     );
   }
 }
@@ -380,12 +487,14 @@ class CalendarScreen extends StatefulWidget {
   final double initialBudget;
   final List<MandatoryExpense> initialExpenses;
   final int startDayOfMonth;
+  final ValueNotifier<ThemeMode> themeNotifier;
 
   const CalendarScreen({
     super.key,
     required this.initialBudget,
     required this.initialExpenses,
     required this.startDayOfMonth,
+    required this.themeNotifier,
   });
 
   @override
@@ -434,7 +543,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
       jsonEncode(_spentPerDay.map((k, v) => MapEntry(k.toIso8601String(), v))),
     );
   }
-
   double get mandatoryTotal => expenses.fold(0, (sum, e) => sum + e.amount);
 
   void nextMonth() {
@@ -458,55 +566,71 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   Future<void> _editSpentForDay(DateTime day) async {
-    final dayDateOnly = DateTime(day.year, day.month, day.day);
-    final spent = _spentPerDay[dayDateOnly] ?? 0;
-    final controller = TextEditingController(
-      text: spent == 0 ? '' : spent.toStringAsFixed(2),
-    );
+  final controller = TextEditingController(
+    text: _spentPerDay[day]?.toString() ?? '',
+  );
 
-    final result = await showDialog<double>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Введите сумму расходов за ${DateFormat('d MMMM yyyy', 'ru').format(dayDateOnly)}'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(labelText: 'Потрачено (₽)'),
-          autofocus: true,
+  final result = await showDialog<double>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('Введите сумму расходов за ${DateFormat('dd.MM.yyyy').format(day)}'),
+      content: TextField(
+        controller: controller,
+        keyboardType: TextInputType.text, // текст, чтобы можно было вводить выражения
+        decoration: InputDecoration(
+          labelText: 'Введите сумму или воспользуйтесь, как калькулятором',
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, null),
-            child: const Text('Отмена'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final val = double.tryParse(controller.text);
-              if (val != null && val >= 0) {
-                Navigator.pop(context, val);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Введите корректное число')),
-                );
-              }
-            },
-            child: const Text('Сохранить'),
-          ),
-        ],
       ),
-    );
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, null),
+          child: const Text('Отмена'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            try {
+              final expression = Expression.parse(controller.text);
+              final evaluator = const ExpressionEvaluator();
+              final value = evaluator.eval(expression, {});
+              if (value is num) {
+                Navigator.pop(context, value.toDouble());
+              } else {
+                throw Exception('Результат не число');
+              }
+            } catch (e) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Ошибка в выражении: ${e.toString()}')),
+              );
+            }
+          },
+          child: const Text('Сохранить'),
+        ),
+      ],
+    ),
+  );
 
-    if (result != null) {
-      setState(() {
-        _spentPerDay[dayDateOnly] = result;
-      });
-      _saveAll();
-    }
+  if (result != null) {
+    setState(() {
+      _spentPerDay[day] = result;
+    });
+    _saveAll();
   }
+}
 
-  Widget _buildWeekDaysHeader() {
-    final days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-    return Row(
+
+Widget _buildWeekDaysHeader() {
+  final days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  return Container(
+    decoration: BoxDecoration(
+      color: isDark
+          ? const Color(0xFF75635A) // Тёмная тема: золотистый
+          : const Color(0xFF3E5543), // Светлая тема: синий
+      borderRadius: BorderRadius.circular(6),
+    ),
+    margin: const EdgeInsets.symmetric(vertical: 4),
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: days
           .map(
@@ -514,29 +638,32 @@ class _CalendarScreenState extends State<CalendarScreen> {
               child: Center(
                 child: Text(
                   d,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF313D65),
+                    color: isDark
+                        ? const Color(0xFFE7D1C5) // Тёмная тема: бежевый
+                        : Colors.white,            // Светлая тема: белый
                   ),
                 ),
               ),
             ),
           )
           .toList(),
-    );
-  }
+    ),
+  );
+}
+
+
 
   Widget _buildCalendar() {
     final daysInCurrentMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1, 0).day;
     final startDay = startDayOfMonth <= daysInCurrentMonth ? startDayOfMonth : daysInCurrentMonth;
 
     final startDate = _focusedMonth;
-
     final nextMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1, 1);
     final daysInNextMonth = DateTime(nextMonth.year, nextMonth.month + 1, 0).day;
     final endDay = startDay <= daysInNextMonth ? startDay : daysInNextMonth;
     final endDate = DateTime(nextMonth.year, nextMonth.month, endDay).subtract(const Duration(days: 1));
-
     final daysCount = endDate.difference(startDate).inDays + 1;
 
     List<Widget> dayWidgets = [];
@@ -560,8 +687,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
       double diff = budgetForDay - spentToday;
       rollover = diff;
 
-      //bool showDetails = !currentDayDateOnly.isAfter(todayDateOnly);
-      final tomorrowDateOnly = todayDateOnly.add(const Duration(days: 1));
       bool showDetails = !currentDayDateOnly.isAfter(tomorrowDateOnly);
 
       dayWidgets.add(
@@ -573,44 +698,65 @@ class _CalendarScreenState extends State<CalendarScreen> {
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(6),
-                color: const Color(0xFFCBC5B9),
+                color: (currentDay.weekday == DateTime.saturday || currentDay.weekday == DateTime.sunday)
+                  ? (Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFF354B46) // Тёмная тема: зелёный
+                      : const Color(0xFFD7E8D5)) // Светлая тема: светло-зелёный
+                  : Theme.of(context).cardColor,
+
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Text(
                     currentDay.day.toString(),
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF313D65)),
+                   style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Color(0xFFE7D1C5)
+                        : const Color(0xFF313D65),
                   ),
+                ),
                   const SizedBox(height: 4),
                   if (showDetails) ...[
-                      Text(
-                        '${budgetForDay.toInt()} ₽',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: Color(0xFF313D65),
-                        ),
+                    Text(
+                      '${budgetForDay.toInt()} ₽',
+                      style: TextStyle(
+                        
+                        fontSize: 16,
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFFE7D1C5)
+                            : const Color(0xFF313D65),
                       ),
-                      const SizedBox(height: 4),
+                    ),
+
+                    const SizedBox(height: 4),
+                    Text(
+                      '${spentToday.toInt()} ₽',
+                      style: TextStyle(
+                      
+                        fontSize: 18,
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFFE7D1C5)
+                            : const Color(0xFF313D65),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    if (!currentDayDateOnly.isAtSameMomentAs(tomorrowDateOnly))
                       Text(
-                        '${spentToday.toInt()} ₽',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
+                        diff >= 0 ? '+${diff.toInt()}' : '${diff.toInt()}',
+                        style: TextStyle(
                           fontSize: 18,
-                          color: Color(0xFF313D65),
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? (diff >= 0
+                                  ? const Color.fromARGB(255, 174, 212, 124) // для положительных в тёмной теме
+                                  : const Color.fromARGB(255, 251, 122, 102)) // для отрицательных в тёмной теме
+                              : (diff >= 0
+                                  ? const Color(0xFF346E4F) // для положительных в светлой теме
+                                  : const Color(0xFF652918)), // для отрицательных в светлой теме
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      if (!currentDayDateOnly.isAtSameMomentAs(tomorrowDateOnly))
-                        Text(
-                          diff >= 0 ? '+${diff.toInt()}' : '${diff.toInt()}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                            color: diff >= 0 ? const Color(0xFF346E4F) : const Color(0xFF652918),
-                          ),
-                        ),
+
                   ],
                 ],
               ),
@@ -747,7 +893,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 ),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.delete, color: Color(0xFF313D65)),
+                                icon: Icon(
+                                  Icons.delete,
+                                  color: Theme.of(context).brightness == Brightness.dark
+                                      ? const Color(0xFF72695A) // для темной темы
+                                      : const Color(0xFF313D65), // для светлой темы
+                                ),
                                 onPressed: () => removeExpense(idx),
                               ),
                             ],
@@ -820,33 +971,61 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return WillPopScope(
       onWillPop: () async {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const BudgetInputScreen()),
+          MaterialPageRoute(builder: (_) => BudgetInputScreen(themeNotifier: widget.themeNotifier)),
         );
         return false;
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFEFEAE4),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
           leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const BudgetInputScreen()),
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => BudgetInputScreen(themeNotifier: widget.themeNotifier)),
               );
             },
           ),
-          backgroundColor: const Color(0xFFEFEAE4),
+          backgroundColor: Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFF222421)
+                            : const Color(0xFFFFFFFF),
           elevation: 0,
-          iconTheme: const IconThemeData(color: Color(0xFF313D65)),
-          title: const Text(
-            'Календарь расходов',
-            style: TextStyle(color: Color(0xFF313D65)),
+          iconTheme: IconThemeData(
+            color: Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF313D65),
           ),
+          title: Text(
+            DateFormat.yMMMM('ru').format(_focusedMonth),
+            style: TextStyle(
+              color: Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFFE7D1C5)
+                            : const Color(0xFF313D65),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          actions: [
+            IconButton(
+              icon: Icon(
+                Theme.of(context).brightness == Brightness.light
+                    ? Icons.dark_mode
+                    : Icons.light_mode,
+              ),
+              onPressed: () {
+                widget.themeNotifier.value =
+                    widget.themeNotifier.value == ThemeMode.light
+                        ? ThemeMode.dark
+                        : ThemeMode.light;
+                SharedPreferences.getInstance().then((prefs) {
+                  prefs.setInt('themeMode', ThemeMode.values.indexOf(widget.themeNotifier.value));
+                });
+              },
+              color: Theme.of(context).brightness == Brightness.dark ? Colors.white : const Color(0xFF313D65),
+            ),
+          ],
         ),
         body: Column(
           children: [
             Container(
-              color: const Color(0xFFEFEAE4),
+              color: Theme.of(context).scaffoldBackgroundColor,
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -855,16 +1034,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     onTap: _editBudget,
                     child: Column(
                       children: [
-                        const Text(
+                        Text(
                           'Бюджет на месяц',
-                          style: TextStyle(color: Color(0xFF313D65)),
+                          style: TextStyle(
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? const Color(0xFFE7D1C5)
+                                : const Color(0xFF313D65),
+                          ),
                         ),
                         Text(
                           '${monthlyBudget.toStringAsFixed(2)} ₽',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 18,
-                            color: Color(0xFF313D65),
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? const Color(0xFFE7D1C5)
+                                : const Color(0xFF313D65),
                           ),
                         ),
                       ],
@@ -874,64 +1059,89 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     onTap: _editExpenses,
                     child: Column(
                       children: [
-                        const Text(
+                        Text(
                           'Обязательные расходы',
-                          style: TextStyle(color: Color(0xFF313D65)),
+                          style: TextStyle(
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? const Color(0xFFE7D1C5)
+                                : const Color(0xFF313D65),
+                          ),
                         ),
                         Text(
                           '${mandatoryTotal.toStringAsFixed(2)} ₽',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
+                          style: TextStyle(
+                           
                             fontSize: 18,
-                            color: Color(0xFF313D65),
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? const Color(0xFFE7D1C5)
+                                : const Color(0xFF313D65),
                           ),
                         ),
                       ],
                     ),
                   ),
                   Column(
-                    children: [
-                      const Text(
-                        'Бюджет на день',
-                        style: TextStyle(color: Color(0xFF313D65)),
-                      ),
+            children: [
+              Text(
+                'Бюджет на день',
+                style: TextStyle(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFFE7D1C5)
+                      : const Color(0xFF313D65),
+                ),
+              ),
                       Text(
-                        '${dailyBaseBudget.toStringAsFixed(2)} ₽',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18,
-                          color: Color(0xFF313D65),
-                        ),
-                      ),
-                    ],
+                '${dailyBaseBudget.toStringAsFixed(2)} ₽',
+                style: TextStyle(
+                  
+                  fontSize: 18,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? const Color(0xFFE7D1C5)
+                      : const Color(0xFF313D65),
+                ),
+              ),
+            ],
                   ),
                 ],
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Color(0xFF313D65)),
-                    onPressed: previousMonth,
-                  ),
-                  Text(
-                    DateFormat.yMMMM('ru').format(_focusedMonth),
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF313D65),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.arrow_forward, color: Color(0xFF313D65)),
-                    onPressed: nextMonth,
-                  ),
-                ],
-              ),
-            ),
+  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+  child: Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      IconButton(
+        icon: Icon(
+          Icons.arrow_back,
+          color: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFFE7D1C5)
+              : const Color(0xFF313D65),
+        ),
+        onPressed: previousMonth,
+      ),
+      Text(
+        DateFormat.yMMMM('ru').format(_focusedMonth),
+        style: TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFFE7D1C5)
+              : const Color(0xFF313D65),
+        ),
+      ),
+      IconButton(
+        icon: Icon(
+          Icons.arrow_forward,
+          color: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFFE7D1C5)
+              : const Color(0xFF313D65),
+        ),
+        onPressed: nextMonth,
+      ),
+    ],
+  ),
+),
+
             _buildWeekDaysHeader(),
             Expanded(
               child: SingleChildScrollView(

@@ -206,7 +206,7 @@ class _BudgetInputScreenState extends State<BudgetInputScreen> {
     final result = await showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Выберите день начала месяца (когда у тебя приходит зп)'),
+        title: const Text('Выберите день начала месяца (когда у Вас приходит зп)'),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
@@ -501,10 +501,33 @@ class CalendarScreen extends StatefulWidget {
   State<CalendarScreen> createState() => _CalendarScreenState();
 }
 
+
 class _CalendarScreenState extends State<CalendarScreen> {
+
+DateTime _calculateSalaryPeriodStart(DateTime now) {
+  int year = now.year;
+  int month = now.month;
+
+  if (now.day < startDayOfMonth) {
+    month -= 1;
+    if (month == 0) {
+      month = 12;
+      year -= 1;
+    }
+  }
+
+  final daysInMonth = DateTime(year, month + 1, 0).day;
+  final day = startDayOfMonth <= daysInMonth
+      ? startDayOfMonth
+      : daysInMonth;
+
+  return DateTime(year, month, day);
+}
+
   late double monthlyBudget;
   late List<MandatoryExpense> expenses;
   Map<DateTime, double> _spentPerDay = {};
+  Map<DateTime, double> _extraIncomePerDay = {}; 
   late int startDayOfMonth;
 
   DateTime _focusedMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
@@ -516,9 +539,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
     monthlyBudget = widget.initialBudget;
     expenses = List.from(widget.initialExpenses);
     startDayOfMonth = widget.startDayOfMonth;
-    final daysInCurrentMonth = DateTime(DateTime.now().year, DateTime.now().month + 1, 0).day;
-    final startDay = startDayOfMonth <= daysInCurrentMonth ? startDayOfMonth : daysInCurrentMonth;
-    _focusedMonth = DateTime(DateTime.now().year, DateTime.now().month, startDay);
+    //final daysInCurrentMonth = DateTime(DateTime.now().year, DateTime.now().month + 1, 0).day;
+    //final startDay = startDayOfMonth <= daysInCurrentMonth ? startDayOfMonth : daysInCurrentMonth;
+    //_focusedMonth = DateTime(DateTime.now().year, DateTime.now().month, startDay);
+
+    _focusedMonth = _calculateSalaryPeriodStart(DateTime.now());
+
     _loadSpent();
   }
 
@@ -531,7 +557,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
         _spentPerDay = map.map((k, v) => MapEntry(DateTime.parse(k), (v as num).toDouble()));
       });
     }
+    final extraIncomeRaw = prefs.getString('extraIncomePerDay'); // Добавьте этот блок
+  if (extraIncomeRaw != null) {
+    final map = (jsonDecode(extraIncomeRaw) as Map<String, dynamic>);
+    setState(() {
+      _extraIncomePerDay = map.map((k, v) => MapEntry(DateTime.parse(k), (v as num).toDouble()));
+    });
   }
+}
 
   Future<void> _saveAll() async {
     final prefs = await SharedPreferences.getInstance();
@@ -541,6 +574,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
     await prefs.setString(
       'spentPerDay',
       jsonEncode(_spentPerDay.map((k, v) => MapEntry(k.toIso8601String(), v))),
+    );
+    await prefs.setString(
+      'extraIncomePerDay',
+      jsonEncode(_extraIncomePerDay.map((k, v) => MapEntry(k.toIso8601String(), v))),
     );
   }
   double get mandatoryTotal => expenses.fold(0, (sum, e) => sum + e.amount);
@@ -569,17 +606,33 @@ class _CalendarScreenState extends State<CalendarScreen> {
   final controller = TextEditingController(
     text: _spentPerDay[day]?.toString() ?? '',
   );
+  final extraController = TextEditingController(
+    text: _extraIncomePerDay[day]?.toString() ?? '',
+  );
 
   final result = await showDialog<double>(
     context: context,
     builder: (context) => AlertDialog(
       title: Text('Введите сумму расходов за ${DateFormat('dd.MM.yyyy').format(day)}'),
-      content: TextField(
-        controller: controller,
-        keyboardType: TextInputType.text, // текст, чтобы можно было вводить выражения
-        decoration: InputDecoration(
-          labelText: 'Введите сумму или воспользуйтесь, как калькулятором',
-        ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: controller,
+            keyboardType: TextInputType.text,
+            decoration: InputDecoration(
+              labelText: 'Введите сумму расходов или выражение',
+            ),
+          ),
+          SizedBox(height: 8),
+          TextField(
+            controller: extraController,
+            keyboardType: TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: 'Дополнительное поступление',
+            ),
+          ),
+        ],
       ),
       actions: [
         TextButton(
@@ -612,6 +665,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
   if (result != null) {
     setState(() {
       _spentPerDay[day] = result;
+      double? extra = double.tryParse(extraController.text.replaceAll(',', '.'));
+      if (extra != null && extra > 0) {
+        _extraIncomePerDay[day] = extra;
+      } else {
+        _extraIncomePerDay.remove(day);
+      }
     });
     _saveAll();
   }
@@ -682,7 +741,8 @@ Widget _buildWeekDaysHeader() {
       DateTime currentDay = startDate.add(Duration(days: i));
       DateTime currentDayDateOnly = DateTime(currentDay.year, currentDay.month, currentDay.day);
 
-      double budgetForDay = dailyBaseBudget + rollover;
+      double extraIncome = _extraIncomePerDay[currentDayDateOnly] ?? 0.0;
+      double budgetForDay = dailyBaseBudget + rollover + extraIncome;
       double spentToday = _spentPerDay[currentDayDateOnly] ?? 0;
       double diff = budgetForDay - spentToday;
       rollover = diff;

@@ -566,6 +566,34 @@ DateTime _calculateSalaryPeriodStart(DateTime now) {
   }
 }
 
+double _calculateRemainingBalance() {
+  // границы текущего зарплатного периода
+  final startDate = _focusedMonth;
+  final nextMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1, 1);
+  final daysInNextMonth = DateTime(nextMonth.year, nextMonth.month + 1, 0).day;
+  final endDay = startDayOfMonth <= daysInNextMonth ? startDayOfMonth : daysInNextMonth;
+  final endDate = DateTime(nextMonth.year, nextMonth.month, endDay)
+      .subtract(const Duration(days: 1));
+
+  double spent = 0;
+  double extra = 0;
+
+  _spentPerDay.forEach((date, value) {
+    if (!date.isBefore(startDate) && !date.isAfter(endDate)) {
+      spent += value;
+    }
+  });
+
+  _extraIncomePerDay.forEach((date, value) {
+    if (!date.isBefore(startDate) && !date.isAfter(endDate)) {
+      extra += value;
+    }
+  });
+
+  return monthlyBudget - spent + extra;
+}
+
+
   Future<void> _saveAll() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble('budget', monthlyBudget);
@@ -1028,6 +1056,8 @@ Widget _buildWeekDaysHeader() {
     final daysInMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1, 0).day;
     final dailyBaseBudget = ((monthlyBudget - mandatoryTotal) / daysInMonth);
 
+    final remaining = _calculateRemainingBalance();
+
     return WillPopScope(
       onWillPop: () async {
         Navigator.of(context).pushReplacement(
@@ -1091,30 +1121,44 @@ Widget _buildWeekDaysHeader() {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   GestureDetector(
-                    onTap: _editBudget,
-                    child: Column(
-                      children: [
-                        Text(
-                          'Бюджет на месяц',
-                          style: TextStyle(
-                            color: Theme.of(context).brightness == Brightness.dark
-                                ? const Color(0xFFE7D1C5)
-                                : const Color(0xFF313D65),
+                      onTap: _editBudget,
+                      child: Column(
+                        children: [
+                          Text(
+                            'Бюджет на месяц',
+                            style: TextStyle(
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? const Color(0xFFE7D1C5)
+                                  : const Color(0xFF313D65),
+                            ),
                           ),
-                        ),
-                        Text(
-                          '${monthlyBudget.toStringAsFixed(2)} ₽',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                            color: Theme.of(context).brightness == Brightness.dark
-                                ? const Color(0xFFE7D1C5)
-                                : const Color(0xFF313D65),
+                          Text(
+                            '${monthlyBudget.toStringAsFixed(2)} ₽',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? const Color(0xFFE7D1C5)
+                                  : const Color(0xFF313D65),
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 4),
+                          Text( 
+                            'Остаток: ${remaining.toStringAsFixed(2)} ₽', 
+                            style: TextStyle( 
+                              fontSize: 14, 
+                              color: remaining >= 0 
+                                  ? (Theme.of(context).brightness == Brightness.dark
+                                      ? const Color.fromARGB(255, 174, 212, 124)
+                                      : const Color(0xFF346E4F))
+                                  : (Theme.of(context).brightness == Brightness.dark
+                                      ? const Color.fromARGB(255, 251, 122, 102)
+                                      : const Color(0xFF652918)), 
+                            ), // NEW
+                          ), // NEW
+                        ],
+                      ),
                     ),
-                  ),
                   GestureDetector(
                     onTap: _editExpenses,
                     child: Column(

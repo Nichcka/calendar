@@ -7,8 +7,13 @@
 <img width="1920" height="1047" alt="image" src="https://github.com/user-attachments/assets/f3f99d64-ccf7-487d-9eb8-8f3eaddbf89a" />
 
 Скачиваете репозиторий
+
 затем:
+
 `flutter build {ваш тип устройства}`
+
 например, 
+
 `flutter build linux`
+
 `flutter build windows`

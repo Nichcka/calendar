@@ -2,15 +2,6 @@
 
 Приложение на языке dart с календарем расходов на месяц
 
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+<img width="1920" height="1047" alt="image" src="https://github.com/user-attachments/assets/c4b3920b-accb-4fca-a05b-269735b6c026" />
+<img width="1920" height="1047" alt="image" src="https://github.com/user-attachments/assets/c246d564-de3c-4043-ac32-11551a89b13c" />
+<img width="1920" height="1047" alt="image" src="https://github.com/user-attachments/assets/f3f99d64-ccf7-487d-9eb8-8f3eaddbf89a" />
